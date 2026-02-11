@@ -7,22 +7,26 @@ from typing import List, Optional
 from datetime import date, timedelta
 from pydantic import BaseModel
 
-from database import get_db
+# Corrected Import: Added engine and Base to be used for table creation
+from database import get_db, engine, Base
 from app.models.maintenance import MaintenanceItem, FlightLog, MaintenanceLog
+
+# Trigger Table Creation: This builds your Postgres schema if it's missing
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Astra 1125SP Fleet Manager")
 
-# UPDATED CORS: Added your Vercel production URL
+# CORS configuration
 origins = [
-    "http://localhost:5173",                          # Local Vite Dev
-    "http://127.0.0.1:5173",                        # Local Vite Dev Alternate
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "https://astra-frontend-tau.vercel.app",
     "https://astra-frontend-tau.vercel.app/"         
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development; restrict in production
+    allow_origins=["*"],  # Keeping wildcard for now to ensure connection clears
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -150,7 +154,6 @@ def complete_maintenance_task(data: MaintCompletionCreate, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-# Added for deployment: Ensures the app listens on the port assigned by the host
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
