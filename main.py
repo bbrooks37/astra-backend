@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -11,10 +12,16 @@ from app.models.maintenance import MaintenanceItem, FlightLog, MaintenanceLog
 
 app = FastAPI(title="Astra 1125SP Fleet Manager")
 
-# THE ORDER MATTERS: This must be the very first thing after defining 'app'
+# UPDATED CORS: Added your Vercel production URL
+origins = [
+    "http://localhost:5173",                          # Local Vite Dev
+    "http://127.0.0.1:5173",                        # Local Vite Dev Alternate
+    "https://astra-frontend-tau.vercel.app"          # Production Vercel App
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # This allows EVERY origin - great for fixing local dev issues
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,7 +69,6 @@ def read_root(db: Session = Depends(get_db)):
             "message": "Hangar Online"
         }
     except Exception as e:
-        # This prevents the 500 crash and actually tells us what's wrong
         print(f"CRITICAL BACKEND ERROR: {e}")
         return {
             "aircraft": "N528RR",
@@ -78,7 +84,6 @@ def get_all_maintenance(db: Session = Depends(get_db)):
 
 @app.get("/maintenance/{item_id}/history")
 def get_maintenance_history(item_id: int, db: Session = Depends(get_db)):
-    """Fetches the full audit trail for a specific maintenance task."""
     return db.query(MaintenanceLog)\
              .filter(MaintenanceLog.item_id == item_id)\
              .order_by(MaintenanceLog.completion_date.desc())\
@@ -86,13 +91,12 @@ def get_maintenance_history(item_id: int, db: Session = Depends(get_db)):
 
 @app.get("/logs/flights")
 def get_flight_logs(db: Session = Depends(get_db)):
-    """Fetches all logged flights in reverse chronological order."""
     return db.query(FlightLog).order_by(FlightLog.date.desc()).all()
 
 @app.post("/logs/submit")
 def submit_flight_log(log_data: FlightLogCreate, db: Session = Depends(get_db)):
     try:
-        new_log = FlightLog(**log_data.dict(), total_landings=log_data.landings_day + log_data.landings_night)
+        new_log = FlightLog(**log_data.model_dump(), total_landings=log_data.landings_day + log_data.landings_night)
         db.add(new_log)
         db.flush()
 
@@ -117,7 +121,6 @@ def complete_maintenance_task(data: MaintCompletionCreate, db: Session = Depends
         raise HTTPException(status_code=404, detail="Maintenance task not found")
 
     try:
-        # 1. Create the Historical Log Entry
         new_history = MaintenanceLog(
             item_id=data.item_id,
             completion_date=data.completion_date,
@@ -128,18 +131,15 @@ def complete_maintenance_task(data: MaintCompletionCreate, db: Session = Depends
         )
         db.add(new_history)
 
-        # 2. Update 'Last Completed' on the main item
         item.last_completed_date = data.completion_date
         item.last_completed_hours = data.completion_hours
         
-        # 3. Project 'Next Due' based on intervals
         if item.interval_hours:
             item.next_due_hours = data.completion_hours + item.interval_hours
         
         if item.interval_months:
             item.next_due_date = data.completion_date + timedelta(days=item.interval_months * 30)
 
-        # 4. Reset status
         item.is_overdue = False
         
         db.commit()
@@ -148,3 +148,9 @@ def complete_maintenance_task(data: MaintCompletionCreate, db: Session = Depends
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+# Added for deployment: Ensures the app listens on the port assigned by the host
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
