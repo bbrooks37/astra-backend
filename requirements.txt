@@ -44,7 +44,7 @@ packaging==24.2
 pandas==2.3.2
 pillow==11.3.0
 protobuf==5.29.5
-psycopg2-binary==2.9.11
+psycopg2-binary==2.9.9
 pyarrow==21.0.0
 pydantic==2.11.7
 pydantic-settings==2.10.1
