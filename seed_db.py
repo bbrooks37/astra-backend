@@ -1,17 +1,39 @@
+import os
+import sqlalchemy as sa
 from datetime import date
-from database import SessionLocal, engine, Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# Import your local project components
+from database import Base
 from app.models.maintenance import MaintenanceItem, FlightLog
 from app.constants import TrackingType
-import sqlalchemy as sa
+
+# --- DATABASE CONNECTION LOGIC ---
+# This will use your Render DB URL if available, otherwise fallback to local SQLite
+DB_URL = os.environ.get("DATABASE_URL")
+
+# Render uses 'postgres://', but SQLAlchemy requires 'postgresql://'
+if DB_URL and DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+
+if not DB_URL:
+    DB_URL = "sqlite:///./local.db"
+
+engine = create_engine(DB_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def seed_data():
     db = SessionLocal()
+    
+    # Create tables if they don't exist in the new Postgres instance
     Base.metadata.create_all(bind=engine)
     inspector = sa.inspect(engine)
     
     try:
+        print(f"Connecting to: {DB_URL.split('@')[-1]}") # Log host safely
+        
         # 1. SAFELY CLEAN OLD DATA
-        # We check if tables exist first to avoid the "UndefinedTable" error
         if inspector.has_table("maintenance_items"):
             db.query(MaintenanceItem).delete()
         if inspector.has_table("flight_logs"):
