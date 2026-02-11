@@ -16,12 +16,13 @@ app = FastAPI(title="Astra 1125SP Fleet Manager")
 origins = [
     "http://localhost:5173",                          # Local Vite Dev
     "http://127.0.0.1:5173",                        # Local Vite Dev Alternate
-    "https://astra-frontend-tau.vercel.app"          # Production Vercel App
+    "https://astra-frontend-tau.vercel.app",
+    "https://astra-frontend-tau.vercel.app/"         
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for development; restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
